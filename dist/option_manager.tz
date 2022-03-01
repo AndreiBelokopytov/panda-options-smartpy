@@ -1,127 +1,170 @@
-parameter (pair %sell_option (pair (nat %amount) (int %period)) (pair (address %pool_address) (nat %strike)));
-storage   (pair (nat %next_token_id) (big_map %options nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))));
+parameter (or (pair %sell_option (nat %amount) (pair (int %period) (nat %strike))) (or (address %set_option_fa2_address) (address %set_pool_address)));
+storage   (pair (pair (address %admin) (nat %next_token_id)) (pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address))));
 code
   {
     UNPAIR;     # @parameter : @storage
-    # == sell_option ==
-    # strike_ = sp.local("strike_", params.strike) # @parameter : @storage
-    DUP;        # @parameter : @parameter : @storage
-    GET 4;      # nat : @parameter : @storage
-    SWAP;       # @parameter : nat : @storage
-    # base_asset = sp.local("base_asset", sp.view("get_base_asset", params.pool_address, sp.unit, sp.TString).open_some(message = 'Invalid get_base_asset view')) # @parameter : nat : @storage
-    DUP;        # @parameter : @parameter : nat : @storage
-    DUG 2;      # @parameter : nat : @parameter : @storage
-    GET 3;      # address : nat : @parameter : @storage
-    UNIT;       # unit : address : nat : @parameter : @storage
-    VIEW "get_base_asset" string; # option string : nat : @parameter : @storage
-    IF_NONE
+    IF_LEFT
       {
-        PUSH string "Invalid get_base_asset view"; # string : nat : @parameter : @storage
-        FAILWITH;   # FAILED
-      }
-      {}; # @some : nat : @parameter : @storage
-    # if params.strike == 0: # @some : nat : @parameter : @storage
-    PUSH nat 0; # nat : @some : nat : @parameter : @storage
-    DUP 4;      # @parameter : nat : @some : nat : @parameter : @storage
-    GET 4;      # nat : nat : @some : nat : @parameter : @storage
-    COMPARE;    # int : @some : nat : @parameter : @storage
-    EQ;         # bool : @some : nat : @parameter : @storage
-    IF
-      {
-        SWAP;       # nat : @some : @parameter : @storage
-        DROP;       # @some : @parameter : @storage
-        # strike_.value = sp.snd(sp.view("getPrice", sp.address('KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL'), base_asset.value, sp.TPair(sp.TTimestamp, sp.TNat)).open_some(message = 'Invalid getPrice view')) # @some : @parameter : @storage
-        PUSH address "KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"; # address : @some : @parameter : @storage
-        SWAP;       # @some : address : @parameter : @storage
-        VIEW "getPrice" (pair timestamp nat); # option (pair timestamp nat) : @parameter : @storage
+        # == sell_option ==
+        # strike_ = sp.local("strike_", params.strike) # @parameter%sell_option : @storage
+        DUP;        # @parameter%sell_option : @parameter%sell_option : @storage
+        GET 4;      # nat : @parameter%sell_option : @storage
+        # if params.strike == 0: # nat : @parameter%sell_option : @storage
+        PUSH nat 0; # nat : nat : @parameter%sell_option : @storage
+        DUP 3;      # @parameter%sell_option : nat : nat : @parameter%sell_option : @storage
+        GET 4;      # nat : nat : nat : @parameter%sell_option : @storage
+        COMPARE;    # int : nat : @parameter%sell_option : @storage
+        EQ;         # bool : nat : @parameter%sell_option : @storage
+        IF
+          {
+            DROP;       # @parameter%sell_option : @storage
+            # strike_.value = sp.snd(sp.view("getPrice", sp.address('KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL'), 'XTZ-USD', sp.TPair(sp.TTimestamp, sp.TNat)).open_some(message = 'Invalid getPrice view')) # @parameter%sell_option : @storage
+            PUSH address "KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"; # address : @parameter%sell_option : @storage
+            PUSH string "XTZ-USD"; # string : address : @parameter%sell_option : @storage
+            VIEW "getPrice" (pair timestamp nat); # option (pair timestamp nat) : @parameter%sell_option : @storage
+            IF_NONE
+              {
+                PUSH string "Invalid getPrice view"; # string : @parameter%sell_option : @storage
+                FAILWITH;   # FAILED
+              }
+              {}; # @some : @parameter%sell_option : @storage
+            CDR;        # nat : @parameter%sell_option : @storage
+          }
+          {}; # nat : @parameter%sell_option : @storage
+        # sp.verify(params.period >= 1, 'Invalid option period') # nat : @parameter%sell_option : @storage
+        PUSH int 1; # int : nat : @parameter%sell_option : @storage
+        DUP 3;      # @parameter%sell_option : int : nat : @parameter%sell_option : @storage
+        GET 3;      # int : int : nat : @parameter%sell_option : @storage
+        COMPARE;    # int : nat : @parameter%sell_option : @storage
+        GE;         # bool : nat : @parameter%sell_option : @storage
+        IF
+          {}
+          {
+            PUSH string "Invalid option period"; # string : nat : @parameter%sell_option : @storage
+            FAILWITH;   # FAILED
+          }; # nat : @parameter%sell_option : @storage
+        # sp.verify(params.period <= 30, 'Invalid option period') # nat : @parameter%sell_option : @storage
+        PUSH int 30; # int : nat : @parameter%sell_option : @storage
+        DUP 3;      # @parameter%sell_option : int : nat : @parameter%sell_option : @storage
+        GET 3;      # int : int : nat : @parameter%sell_option : @storage
+        COMPARE;    # int : nat : @parameter%sell_option : @storage
+        LE;         # bool : nat : @parameter%sell_option : @storage
+        IF
+          {}
+          {
+            PUSH string "Invalid option period"; # string : nat : @parameter%sell_option : @storage
+            FAILWITH;   # FAILED
+          }; # nat : @parameter%sell_option : @storage
+        # self.data.options[self.data.next_token_id] = sp.record(amount = params.amount, base_asset = 'XTZ-USD', expiration = sp.now, owner = sp.sender, state = variant('Active', sp.unit), strike = strike_.value) # nat : @parameter%sell_option : @storage
+        DUP 3;      # @storage : nat : @parameter%sell_option : @storage
+        DUP;        # @storage : @storage : nat : @parameter%sell_option : @storage
+        GET 5;      # big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : nat : @parameter%sell_option : @storage
+        DIG 2;      # nat : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PUSH (or (or unit unit) (or unit unit)) (Left (Left Unit)); # or (or unit unit) (or unit unit) : nat : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PAIR;       # pair (or (or unit unit) (or unit unit)) nat : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        SENDER;     # @sender : pair (or (or unit unit) (or unit unit)) nat : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PAIR;       # pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        NOW;        # @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PUSH string "XTZ-USD"; # string : @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PAIR;       # pair string @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        DUP 5;      # @parameter%sell_option : pair string @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        CAR;        # nat : pair string @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PAIR;       # pair nat (pair string @now) : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        PAIR;       # pair (pair nat (pair string @now)) (pair @sender (pair (or (or unit unit) (or unit unit)) nat)) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        SOME;       # option (pair (pair nat (pair string @now)) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option : @storage
+        DIG 4;      # @storage : option (pair (pair nat (pair string @now)) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option
+        CAR;        # pair (address %admin) (nat %next_token_id) : option (pair (pair nat (pair string @now)) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option
+        CDR;        # nat : option (pair (pair nat (pair string @now)) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter%sell_option
+        UPDATE;     # big_map nat (pair (pair nat (pair string timestamp)) (pair address (pair (or (or unit unit) (or unit unit)) nat))) : @storage : @parameter%sell_option
+        UPDATE 5;   # @storage : @parameter%sell_option
+        SWAP;       # @parameter%sell_option : @storage
+        # sp.transfer(sp.record(address = sp.sender, amount = params.amount, metadata = {'decimals' : sp.bytes('0x30'), 'name' : sp.bytes('0x58545a2d5553444f7074696f6e'), 'symbol' : sp.bytes('0x504f50')}, token_id = self.data.next_token_id), sp.tez(0), sp.contract(sp.TRecord(address = sp.TAddress, amount = sp.TNat, metadata = sp.TMap(sp.TString, sp.TBytes), token_id = sp.TNat).layout((("address", "amount"), ("metadata", "token_id"))), self.data.option_fa2_address.open_some(message = 'Option FA2 address does not set'), entry_point='mint').open_some(message = 'Option FA2 interface mismatch')) # @parameter%sell_option : @storage
+        NIL operation; # list operation : @parameter%sell_option : @storage
+        DUP 3;      # @storage : list operation : @parameter%sell_option : @storage
+        GET 3;      # option address : list operation : @parameter%sell_option : @storage
         IF_NONE
           {
-            PUSH string "Invalid getPrice view"; # string : @parameter : @storage
+            PUSH string "Option FA2 address does not set"; # string : list operation : @parameter%sell_option : @storage
             FAILWITH;   # FAILED
           }
-          {}; # @some : @parameter : @storage
-        CDR;        # nat : @parameter : @storage
+          {}; # @some : list operation : @parameter%sell_option : @storage
+        CONTRACT %mint (pair (pair (address %address) (nat %amount)) (pair (map %metadata string bytes) (nat %token_id))); # option (contract (pair (pair (address %address) (nat %amount)) (pair (map %metadata string bytes) (nat %token_id)))) : list operation : @parameter%sell_option : @storage
+        IF_NONE
+          {
+            PUSH string "Option FA2 interface mismatch"; # string : list operation : @parameter%sell_option : @storage
+            FAILWITH;   # FAILED
+          }
+          {}; # @some : list operation : @parameter%sell_option : @storage
+        PUSH mutez 0; # mutez : @some : list operation : @parameter%sell_option : @storage
+        DUP 5;      # @storage : mutez : @some : list operation : @parameter%sell_option : @storage
+        CAR;        # pair (address %admin) (nat %next_token_id) : mutez : @some : list operation : @parameter%sell_option : @storage
+        CDR;        # nat : mutez : @some : list operation : @parameter%sell_option : @storage
+        PUSH (map string bytes) {Elt "decimals" 0x30; Elt "name" 0x58545a2d5553444f7074696f6e; Elt "symbol" 0x504f50}; # map string bytes : nat : mutez : @some : list operation : @parameter%sell_option : @storage
+        PAIR;       # pair (map string bytes) nat : mutez : @some : list operation : @parameter%sell_option : @storage
+        DIG 4;      # @parameter%sell_option : pair (map string bytes) nat : mutez : @some : list operation : @storage
+        CAR;        # nat : pair (map string bytes) nat : mutez : @some : list operation : @storage
+        SENDER;     # @sender : nat : pair (map string bytes) nat : mutez : @some : list operation : @storage
+        PAIR;       # pair @sender nat : pair (map string bytes) nat : mutez : @some : list operation : @storage
+        PAIR;       # pair (pair @sender nat) (pair (map string bytes) nat) : mutez : @some : list operation : @storage
+        TRANSFER_TOKENS; # operation : list operation : @storage
+        CONS;       # list operation : @storage
+        SWAP;       # @storage : list operation
+        # self.data.next_token_id += 1 # @storage : list operation
+        UNPAIR;     # pair (address %admin) (nat %next_token_id) : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        UNPAIR;     # address : nat : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        SWAP;       # nat : address : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        PUSH nat 1; # nat : nat : address : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        ADD;        # nat : address : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        SWAP;       # address : nat : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        PAIR;       # pair address nat : pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)) : list operation
+        PAIR;       # pair (pair address nat) (pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address))) : list operation
+        SWAP;       # list operation : pair (pair address nat) (pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)))
       }
       {
-        DROP;       # nat : @parameter : @storage
-      }; # nat : @parameter : @storage
-    # sp.verify(params.period >= 1, 'Invalid option period') # nat : @parameter : @storage
-    PUSH int 1; # int : nat : @parameter : @storage
-    DUP 3;      # @parameter : int : nat : @parameter : @storage
-    CAR;        # pair (nat %amount) (int %period) : int : nat : @parameter : @storage
-    CDR;        # int : int : nat : @parameter : @storage
-    COMPARE;    # int : nat : @parameter : @storage
-    GE;         # bool : nat : @parameter : @storage
-    IF
-      {}
-      {
-        PUSH string "Invalid option period"; # string : nat : @parameter : @storage
-        FAILWITH;   # FAILED
-      }; # nat : @parameter : @storage
-    # sp.verify(params.period <= 30, 'Invalid option period') # nat : @parameter : @storage
-    PUSH int 30; # int : nat : @parameter : @storage
-    DUP 3;      # @parameter : int : nat : @parameter : @storage
-    CAR;        # pair (nat %amount) (int %period) : int : nat : @parameter : @storage
-    CDR;        # int : int : nat : @parameter : @storage
-    COMPARE;    # int : nat : @parameter : @storage
-    LE;         # bool : nat : @parameter : @storage
-    IF
-      {}
-      {
-        PUSH string "Invalid option period"; # string : nat : @parameter : @storage
-        FAILWITH;   # FAILED
-      }; # nat : @parameter : @storage
-    # self.data.options[self.data.next_token_id] = sp.record(amount = params.amount, expiration = sp.now, owner = sp.sender, state = variant('Active', sp.unit), strike = strike_.value) # nat : @parameter : @storage
-    DUP 3;      # @storage : nat : @parameter : @storage
-    DUP;        # @storage : @storage : nat : @parameter : @storage
-    CDR;        # big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : nat : @parameter : @storage
-    DIG 2;      # nat : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    PUSH (or (or unit unit) (or unit unit)) (Left (Left Unit)); # or (or unit unit) (or unit unit) : nat : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    PAIR;       # pair (or (or unit unit) (or unit unit)) nat : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    SENDER;     # @sender : pair (or (or unit unit) (or unit unit)) nat : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    PAIR;       # pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    NOW;        # @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    DUP 5;      # @parameter : @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    CAR;        # pair (nat %amount) (int %period) : @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    CAR;        # nat : @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    PAIR;       # pair nat @now : pair @sender (pair (or (or unit unit) (or unit unit)) nat) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    PAIR;       # pair (pair nat @now) (pair @sender (pair (or (or unit unit) (or unit unit)) nat)) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    SOME;       # option (pair (pair nat @now) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter : @storage
-    DIG 4;      # @storage : option (pair (pair nat @now) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter
-    CAR;        # nat : option (pair (pair nat @now) (pair @sender (pair (or (or unit unit) (or unit unit)) nat))) : big_map nat (pair (pair (nat %amount) (timestamp %expiration)) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike)))) : @storage : @parameter
-    UPDATE;     # big_map nat (pair (pair nat timestamp) (pair address (pair (or (or unit unit) (or unit unit)) nat))) : @storage : @parameter
-    UPDATE 2;   # @storage : @parameter
-    SWAP;       # @parameter : @storage
-    # sp.transfer(sp.record(address = sp.sender, amount = params.amount, metadata = {'decimals' : sp.bytes('0x30'), 'name' : sp.bytes('0x50616e6461'), 'symbol' : sp.bytes('0x545a4f50')}, token_id = self.data.next_token_id), sp.tez(0), sp.contract(sp.TRecord(address = sp.TAddress, amount = sp.TNat, metadata = sp.TMap(sp.TString, sp.TBytes), token_id = sp.TNat).layout((("address", "amount"), ("metadata", "token_id"))), sp.address('KT1FoBPfaL5Q9nzkwbesXzqWSRwMJ2m31Qiz'), entry_point='mint').open_some(message = 'Option FA2 interface mismatch')) # @parameter : @storage
-    NIL operation; # list operation : @parameter : @storage
-    PUSH address "KT1FoBPfaL5Q9nzkwbesXzqWSRwMJ2m31Qiz"; # address : list operation : @parameter : @storage
-    CONTRACT %mint (pair (pair (address %address) (nat %amount)) (pair (map %metadata string bytes) (nat %token_id))); # option (contract (pair (pair (address %address) (nat %amount)) (pair (map %metadata string bytes) (nat %token_id)))) : list operation : @parameter : @storage
-    IF_NONE
-      {
-        PUSH string "Option FA2 interface mismatch"; # string : list operation : @parameter : @storage
-        FAILWITH;   # FAILED
-      }
-      {}; # @some : list operation : @parameter : @storage
-    PUSH mutez 0; # mutez : @some : list operation : @parameter : @storage
-    DUP 5;      # @storage : mutez : @some : list operation : @parameter : @storage
-    CAR;        # nat : mutez : @some : list operation : @parameter : @storage
-    PUSH (map string bytes) {Elt "decimals" 0x30; Elt "name" 0x50616e6461; Elt "symbol" 0x545a4f50}; # map string bytes : nat : mutez : @some : list operation : @parameter : @storage
-    PAIR;       # pair (map string bytes) nat : mutez : @some : list operation : @parameter : @storage
-    DIG 4;      # @parameter : pair (map string bytes) nat : mutez : @some : list operation : @storage
-    CAR;        # pair (nat %amount) (int %period) : pair (map string bytes) nat : mutez : @some : list operation : @storage
-    CAR;        # nat : pair (map string bytes) nat : mutez : @some : list operation : @storage
-    SENDER;     # @sender : nat : pair (map string bytes) nat : mutez : @some : list operation : @storage
-    PAIR;       # pair @sender nat : pair (map string bytes) nat : mutez : @some : list operation : @storage
-    PAIR;       # pair (pair @sender nat) (pair (map string bytes) nat) : mutez : @some : list operation : @storage
-    TRANSFER_TOKENS; # operation : list operation : @storage
-    CONS;       # list operation : @storage
-    SWAP;       # @storage : list operation
-    # self.data.next_token_id += 1 # @storage : list operation
-    DUP;        # @storage : @storage : list operation
-    CAR;        # nat : @storage : list operation
-    PUSH nat 1; # nat : nat : @storage : list operation
-    ADD;        # nat : @storage : list operation
-    UPDATE 1;   # @storage : list operation
-    SWAP;       # list operation : @storage
-    PAIR;       # pair (list operation) @storage
+        IF_LEFT
+          {
+            SWAP;       # @storage : @parameter%set_option_fa2_address
+            # == set_option_fa2_address ==
+            # sp.verify(sp.sender == self.data.admin) # @storage : @parameter%set_option_fa2_address
+            DUP;        # @storage : @storage : @parameter%set_option_fa2_address
+            DUG 2;      # @storage : @parameter%set_option_fa2_address : @storage
+            CAR;        # pair (address %admin) (nat %next_token_id) : @parameter%set_option_fa2_address : @storage
+            CAR;        # address : @parameter%set_option_fa2_address : @storage
+            SENDER;     # @sender : address : @parameter%set_option_fa2_address : @storage
+            COMPARE;    # int : @parameter%set_option_fa2_address : @storage
+            EQ;         # bool : @parameter%set_option_fa2_address : @storage
+            IF
+              {}
+              {
+                PUSH string "WrongCondition: sp.sender == self.data.admin"; # string : @parameter%set_option_fa2_address : @storage
+                FAILWITH;   # FAILED
+              }; # @parameter%set_option_fa2_address : @storage
+            # self.data.option_fa2_address = sp.some(params) # @parameter%set_option_fa2_address : @storage
+            SOME;       # option address : @storage
+            UPDATE 3;   # @storage
+          }
+          {
+            SWAP;       # @storage : @parameter%set_pool_address
+            # == set_pool_address ==
+            # sp.verify(sp.sender == self.data.admin) # @storage : @parameter%set_pool_address
+            DUP;        # @storage : @storage : @parameter%set_pool_address
+            DUG 2;      # @storage : @parameter%set_pool_address : @storage
+            CAR;        # pair (address %admin) (nat %next_token_id) : @parameter%set_pool_address : @storage
+            CAR;        # address : @parameter%set_pool_address : @storage
+            SENDER;     # @sender : address : @parameter%set_pool_address : @storage
+            COMPARE;    # int : @parameter%set_pool_address : @storage
+            EQ;         # bool : @parameter%set_pool_address : @storage
+            IF
+              {}
+              {
+                PUSH string "WrongCondition: sp.sender == self.data.admin"; # string : @parameter%set_pool_address : @storage
+                FAILWITH;   # FAILED
+              }; # @parameter%set_pool_address : @storage
+            # self.data.pool_address = sp.some(params) # @parameter%set_pool_address : @storage
+            SOME;       # option address : @storage
+            UPDATE 6;   # @storage
+          }; # @storage
+        NIL operation; # list operation : @storage
+      }; # list operation : pair (pair address nat) (pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address)))
+    PAIR;       # pair (list operation) (pair (pair address nat) (pair (option %option_fa2_address address) (pair (big_map %options nat (pair (pair (nat %amount) (pair (string %base_asset) (timestamp %expiration))) (pair (address %owner) (pair (or %state (or (unit %Active) (unit %Exercised)) (or (unit %Expired) (unit %Invalid))) (nat %strike))))) (option %pool_address address))))
   };
