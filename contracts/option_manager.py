@@ -53,7 +53,7 @@ class OptionManager(sp.Contract):
                   invalid_option_period_error)
         sp.verify(period <= self._option_max_period,
                   invalid_option_period_error)
-        expiration = sp.timestamp_from_utc_now()
+        expiration = sp.now
         expiration.add_days(period)
         return sp.record(owner=owner, state=sp.variant("Active", sp.unit),
                          amount=amount, strike=strike, expiration=expiration)
