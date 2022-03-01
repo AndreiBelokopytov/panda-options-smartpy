@@ -2,9 +2,8 @@ SMART_PY_CLI := ~/smartpy-cli/SmartPy.sh
 DIST_DIR := ./dist
 TEMP_DIR := ./temp
 CONTRACTS_DIR := ./contracts
-RPC := https://hangzhounet.smartpy.io
 
-###### AGGREGATE TARGETS ###### 
+###### AGGREGATE TARGETS ######
 
 # Build everything
 all:
@@ -18,7 +17,7 @@ compile:
 	make compile-option-manager
 	make clean
 
-###### COMPILATIONs ###### 
+###### COMPILATIONs ######
 compile-pool:
 	$(SMART_PY_CLI) compile $(CONTRACTS_DIR)/pool.py $(TEMP_DIR)
 	cp $(TEMP_DIR)/pool/step_000_cont_0_contract.tz $(DIST_DIR)/pool.tz
@@ -41,7 +40,7 @@ test:
 	make test-option-manager
 	make clean
 
-###### TESTS ###### 
+###### TESTS ######
 
 test-pool:
 	$(SMART_PY_CLI) test $(CONTRACTS_DIR)/pool.py $(TEMP_DIR)
@@ -49,15 +48,9 @@ test-pool:
 test-option-manager:
 	$(SMART_PY_CLI) test $(CONTRACTS_DIR)/option_manager.py $(TEMP_DIR)
 
-###### DEPLOY ###### 
-deploy-pool:
-	$(SMART_PY_CLI) originate-contract --code $(DIST_DIR)/pool.tz --storage $(DIST_DIR)/pool_storage.tz --rpc $(RPC)
-
-deploy-option-fa2:
-	$(SMART_PY_CLI) originate-contract --code $(DIST_DIR)/option_fa2.tz --storage $(DIST_DIR)/option_fa2_storage.tz --rpc $(RPC)
-
-deploy-option-manager:
-	$(SMART_PY_CLI) originate-contract --code $(DIST_DIR)/option_manager.tz --storage $(DIST_DIR)/option_manager_storage.tz --rpc $(RPC)
+###### DEPLOY ######
+deploy:
+	node_modules/.bin/ts-node scripts/deploy.ts
 
 ###### CLEANING ######
 clean:
