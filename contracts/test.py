@@ -1,11 +1,11 @@
 import smartpy as sp
 
-FA2 = sp.io.import_script_from_url("https://smartpy.io/templates/FA2.py").FA2
+FA2 = sp.io.import_script_from_url("https://smartpy.io/templates/FA2.py")
+constants = sp.io.import_script_from_url("file:contracts/utils/constants.py")
 pool = sp.io.import_script_from_url("file:contracts/pool.py")
 option_fa2 = sp.io.import_script_from_url("file:contracts/option_fa2.py")
 harbinger_mock = sp.io.import_script_from_url(
     "file:contracts/mocks/harbinger_mock.py")
-constants = sp.io.import_script_from_url("file:contracts/utils/constants.py")
 
 TOptionState = sp.TVariant(
     Invalid=sp.TUnit, Active=sp.TUnit, Exercised=sp.TUnit, Expired=sp.TUnit)
@@ -59,7 +59,7 @@ class OptionManager(sp.Contract):
                          amount=amount, strike=strike, expiration=expiration)
 
     def get_option_metadata(self, option):
-        return FA2.make_metadata(
+        return FA2.FA2.make_metadata(
             decimals=0,
             name="Panda",
             symbol="TZOP")
@@ -73,13 +73,12 @@ class OptionManager(sp.Contract):
 
 
 sp.add_compilation_target(
-    "option_manager",
+    "option_manager_testnet",
     OptionManager(
-        normalizer_address=sp.address("KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"),
+        normalizer_address=sp.address("KT1QnqJPr7wtAwto7QjCRqoCGkJYBqH129b8"),
         option_fa2_address=sp.address("KT1FoBPfaL5Q9nzkwbesXzqWSRwMJ2m31Qiz")
     )
 )
-
 
 @sp.add_test(name="option_manager_test")
 def test():
@@ -90,20 +89,15 @@ def test():
     sp.test_account("banana")
     normalizer_contract = harbinger_mock.Normalizer()
     pool_contract = pool.Pool(base_asset)
-    option_fa2_contract = option_fa2.OptionFA2(admin=alice.address)
-    option_manager_contract = OptionManager(
-        normalizer_address=normalizer_contract.address, option_fa2_address=option_fa2_contract.address)
+    option_fa2_contract = option_fa2.OptionFA2(amdin=alice.address)
+    option_manager_contract = OptionManager(normalizer_address = normalizer_contract.address, option_fa2_address = option_fa2_contract.address)
+    option_fa2_contract.setAdministrator(alice.address)
 
     scenario = sp.test_scenario()
-    scenario += normalizer_contract
-    scenario += pool_contract
-    scenario += option_fa2_contract
+    scenario += pool.pool_contract
+    scenario += option_fa2.option_fa2_contract
+    scenario += harbinger_mock.normalizer_contract
     scenario += option_manager_contract
-
-    option_fa2_contract.set_administrator(
-        option_manager_contract.address).run(sender=alice.address)
-    scenario.verify(option_manager_contract.address ==
-                    option_fa2_contract.data.administrator)
 
     scenario.h1("Option")
 
@@ -116,13 +110,13 @@ def test():
     base_asset_price = 350000
 
     scenario.p("it should create an option correctly")
-    scenario += option_manager_contract.sell_option(pool_address=pool_contract.address,
+    scenario += option_manager_contract.sell_option(pool_address=pool.pool_contract.address,
                                                     amount=amount,
                                                     strike=strike,
-                                                    period=period).run(sender=alice.address)
+                                                    period=period).run(sender=alice)
     token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
     option = option_manager_contract.data.options[token_id]
-    normalizer_contract.setPrice(
+    harbinger_mock.normalizer_contract.setPrice(
         asset_code=base_asset, value=base_asset_price)
 
     scenario.verify(option.amount == amount)
@@ -133,23 +127,23 @@ def test():
 
     scenario.p("it should revert if the strike is less than 1 day")
     scenario += option_manager_contract.sell_option(
-        pool_address=pool_contract.address,
-        amount=amount, strike=strike, period=too_short_period).run(sender=alice.address, valid=False)
+        pool_address=pool.pool_contract.address,
+        amount=amount, strike=strike, period=too_short_period).run(valid=False)
 
     scenario.p("it should revert if the strike is more than 30 days")
-    scenario += option_manager_contract.sell_option(pool_address=pool_contract.address, amount=amount,
-                                                    strike=strike, period=too_long_period).run(sender=alice.address, valid=False)
+    scenario += option_manager_contract.sell_option(pool_address=pool.pool_contract.address, amount=amount,
+                                                    strike=strike, period=too_long_period).run(valid=False)
 
     scenario.p("it should set the strike to the spot price if 0 is given")
-    scenario += option_manager_contract.sell_option(pool_address=pool_contract.address, amount=amount,
-                                                    strike=0, period=period).run(sender=alice.address)
+    scenario += option_manager_contract.sell_option(pool_address=pool.pool_contract.address, amount=amount,
+                                                    strike=0, period=period).run(sender=alice)
     token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
     option = option_manager_contract.data.options[token_id]
-    quote = normalizer_contract.getPrice(base_asset)
+    quote = harbinger_mock.normalizer_contract.getPrice(base_asset)
     scenario.verify(option.strike == sp.snd(quote))
 
     scenario.p("it should mint an NFT token")
-    scenario += option_manager_contract.sell_option(pool_address=pool_contract.address, amount=amount,
-                                                    strike=0, period=period).run(sender=alice.address)
+    scenario += option_manager_contract.sell_option(pool_address=pool.pool_contract.address, amount=amount,
+                                                    strike=0, period=period).run(sender=alice)
     token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
-    scenario.verify(option_fa2_contract.does_token_exist(token_id))
+    scenario.verify(option_fa2.option_fa2_contract.does_token_exist(token_id))

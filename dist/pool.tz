@@ -1,0 +1,27 @@
+parameter (or (int %deposit) (int %withdraw));
+storage   int;
+code
+  {
+    UNPAIR;     # @parameter : @storage
+    IF_LEFT
+      {
+        # == deposit ==
+        # self.data.total_amount += params # @parameter%deposit : @storage
+        ADD;        # int
+      }
+      {
+        SWAP;       # @storage : @parameter%withdraw
+        # == withdraw ==
+        # self.data.total_amount -= params # @storage : @parameter%withdraw
+        SUB;        # int
+      }; # int
+    NIL operation; # list operation : int
+    PAIR;       # pair (list operation) int
+  };
+view
+  "get_base_asset" unit string
+  {
+    DROP;       # 
+    # sp.result('XTZ-USD') # 
+    PUSH string "XTZ-USD"; # string
+  };

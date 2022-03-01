@@ -13,3 +13,4 @@ class Normalizer(sp.Contract):
     @sp.onchain_view()
     def getPrice(self, asset_code):
         sp.result(self.data.asset_data[asset_code])
+
