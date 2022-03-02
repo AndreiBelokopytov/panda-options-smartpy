@@ -14,7 +14,7 @@ all:
 compile:
 	make compile-pool
 	make compile-option-fa2
-	make compile-option-manager
+	make compile-option-market
 	make clean
 
 ###### COMPILATIONs ######
@@ -28,16 +28,16 @@ compile-option-fa2:
 	cp $(TEMP_DIR)/option_fa2/step_000_cont_0_contract.tz $(DIST_DIR)/option_fa2.tz
 	cp $(TEMP_DIR)/option_fa2/step_000_cont_0_storage.tz $(DIST_DIR)/option_fa2_storage.tz
 
-compile-option-manager:
-	$(SMART_PY_CLI) compile $(CONTRACTS_DIR)/option_manager.py $(TEMP_DIR)
-	cp $(TEMP_DIR)/option_manager/step_000_cont_2_contract.tz $(DIST_DIR)/option_manager.tz
-	cp $(TEMP_DIR)/option_manager/step_000_cont_2_storage.tz $(DIST_DIR)/option_manager_storage.tz
+compile-option-market:
+	$(SMART_PY_CLI) compile $(CONTRACTS_DIR)/option_market.py $(TEMP_DIR)
+	cp $(TEMP_DIR)/option_market/step_000_cont_2_contract.tz $(DIST_DIR)/option_market.tz
+	cp $(TEMP_DIR)/option_market/step_000_cont_2_storage.tz $(DIST_DIR)/option_market_storage.tz
 
 
 #Test Everything
 test:
 	make test-pool
-	make test-option-manager
+	make test-option-market
 	make clean
 
 ###### TESTS ######
@@ -45,8 +45,8 @@ test:
 test-pool:
 	$(SMART_PY_CLI) test $(CONTRACTS_DIR)/pool.py $(TEMP_DIR)
 
-test-option-manager:
-	$(SMART_PY_CLI) test $(CONTRACTS_DIR)/option_manager.py $(TEMP_DIR)
+test-option-market:
+	$(SMART_PY_CLI) test $(CONTRACTS_DIR)/option_market.py $(TEMP_DIR)
 
 ###### DEPLOY ######
 deploy:

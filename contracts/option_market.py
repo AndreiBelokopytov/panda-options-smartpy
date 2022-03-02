@@ -17,7 +17,7 @@ invalid_option_period_error = "Invalid option period"
 invalid_amount_error = "Invalid amount"
 
 
-class OptionManager(sp.Contract):
+class OptionMarket(sp.Contract):
     _option_min_period = 1
     _option_max_period = 30
     _min_amount = 1
@@ -94,8 +94,8 @@ class OptionManager(sp.Contract):
 
 
 sp.add_compilation_target(
-    "option_manager",
-    OptionManager(
+    "option_market",
+    OptionMarket(
         admin=sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"),
         base_asset="XTZ-USD",
         normalizer_address=sp.address("KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"),
@@ -103,7 +103,7 @@ sp.add_compilation_target(
 )
 
 
-@sp.add_test(name="option_manager_test")
+@sp.add_test(name="option_market_test")
 def test():
     base_asset = "XTZ-USD"
     alice = sp.test_account("alice")
@@ -113,7 +113,7 @@ def test():
     normalizer_contract = harbinger_mock.Normalizer()
     pool_contract = pool.Pool(base_asset)
     option_fa2_contract = option_fa2.OptionFA2(admin=alice.address)
-    option_manager_contract = OptionManager(
+    option_market_contract = OptionMarket(
         admin=alice.address,
         base_asset=base_asset,
         normalizer_address=normalizer_contract.address
@@ -123,25 +123,25 @@ def test():
     scenario += normalizer_contract
     scenario += pool_contract
     scenario += option_fa2_contract
-    scenario += option_manager_contract
+    scenario += option_market_contract
 
     option_fa2_contract.set_administrator(
-        option_manager_contract.address).run(sender=alice.address)
-    scenario.verify(option_manager_contract.address ==
+        option_market_contract.address).run(sender=alice.address)
+    scenario.verify(option_market_contract.address ==
                     option_fa2_contract.data.administrator)
 
-    scenario.h1("Option Manager")
+    scenario.h1("Option Market")
 
-    scenario += option_manager_contract.set_option_fa2_address(
+    scenario += option_market_contract.set_option_fa2_address(
         option_fa2_contract.address).run(sender=alice.address)
 
-    scenario.verify(option_manager_contract.data.option_fa2_address.open_some(
+    scenario.verify(option_market_contract.data.option_fa2_address.open_some(
     ) == option_fa2_contract.address)
 
-    scenario += option_manager_contract.set_pool_address(
+    scenario += option_market_contract.set_pool_address(
         pool_contract.address).run(sender=alice.address)
     scenario.verify(
-        option_manager_contract.data.pool_address.open_some() == pool_contract.address)
+        option_market_contract.data.pool_address.open_some() == pool_contract.address)
 
     scenario.h2("Sell option")
     amount = 1
@@ -153,12 +153,12 @@ def test():
     zero_amount = 0
 
     scenario.p("it should create an option correctly")
-    scenario += option_manager_contract.sell_option(
+    scenario += option_market_contract.sell_option(
         amount=amount,
         strike=strike,
         period=period).run(sender=alice.address)
-    token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
-    option = option_manager_contract.data.options[token_id]
+    token_id = sp.as_nat(option_market_contract.data.next_token_id - 1)
+    option = option_market_contract.data.options[token_id]
     normalizer_contract.setPrice(
         asset_code=base_asset, value=base_asset_price)
 
@@ -167,27 +167,27 @@ def test():
     scenario.verify(option.state.is_variant("Active"))
 
     scenario.p("it should revert if the strike is less than 1 day")
-    scenario += option_manager_contract.sell_option(
+    scenario += option_market_contract.sell_option(
         amount=amount, strike=strike, period=too_short_period).run(sender=alice.address, valid=False)
 
     scenario.p("it should revert if the strike is more than 30 days")
-    scenario += option_manager_contract.sell_option(amount=amount,
-                                                    strike=strike, period=too_long_period).run(sender=alice.address, valid=False)
+    scenario += option_market_contract.sell_option(amount=amount,
+                                                   strike=strike, period=too_long_period).run(sender=alice.address, valid=False)
 
     scenario.p("it should revert if the amount is less than 1")
-    scenario += option_manager_contract.sell_option(amount=zero_amount,
-                                                    strike=strike, period=period).run(sender=alice.address, valid=False)
+    scenario += option_market_contract.sell_option(amount=zero_amount,
+                                                   strike=strike, period=period).run(sender=alice.address, valid=False)
 
     scenario.p("it should set option's strike to the spot price if 0 is given")
-    scenario += option_manager_contract.sell_option(amount=amount,
-                                                    strike=0, period=period).run(sender=alice.address)
-    token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
-    option = option_manager_contract.data.options[token_id]
+    scenario += option_market_contract.sell_option(amount=amount,
+                                                   strike=0, period=period).run(sender=alice.address)
+    token_id = sp.as_nat(option_market_contract.data.next_token_id - 1)
+    option = option_market_contract.data.options[token_id]
     quote = normalizer_contract.getPrice(base_asset)
     scenario.verify(option.strike == sp.snd(quote))
 
     scenario.p("it should mint an NFT token")
-    scenario += option_manager_contract.sell_option(amount=amount,
-                                                    strike=0, period=period).run(sender=alice.address)
-    token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
+    scenario += option_market_contract.sell_option(amount=amount,
+                                                   strike=0, period=period).run(sender=alice.address)
+    token_id = sp.as_nat(option_market_contract.data.next_token_id - 1)
     scenario.verify(option_fa2_contract.does_token_exist(token_id))
