@@ -18,10 +18,3 @@ code
     NIL operation; # list operation : int
     PAIR;       # pair (list operation) int
   };
-view
-  "get_base_asset" unit string
-  {
-    DROP;       # 
-    # sp.result('XTZ-USD') # 
-    PUSH string "XTZ-USD"; # string
-  };

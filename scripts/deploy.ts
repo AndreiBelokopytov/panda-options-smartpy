@@ -21,11 +21,18 @@ Tezos.setProvider({
   signer: new InMemorySigner(PRIVATE_KEY),
 });
 
-(async function deploy() {
+(async function run() {
+  await deployMarketContract("xtz_usd_call_option_market");
+  await deployMarketContract("xtz_usd_put_option_market");
+  console.log("🎉 everything is done!");
+})();
+
+async function deployMarketContract(contractName: string) {
+  console.log(`🟣 started ${contractName} contract deployment`);
   console.log("⏳ waiting for contracts origination");
   const poolContract = await originateContract("pool");
   const optionFA2Contract = await originateContract("option_fa2");
-  const optionManagerContract = await originateContract("option_manager");
+  const optionManagerContract = await originateContract(contractName);
   console.log("⏳ initializing contracts");
   await confirmOperation(
     await optionFA2Contract.methods["set_administrator"](
@@ -42,8 +49,7 @@ Tezos.setProvider({
       optionFA2Contract.address
     ).send()
   );
-  console.log("🎉 everything is done!");
-})();
+}
 
 async function confirmOperation(op: Operation) {
   return op.confirmation(CONFIRMATIONS_COUNT);

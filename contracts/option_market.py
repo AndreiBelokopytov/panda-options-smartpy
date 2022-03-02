@@ -16,14 +16,18 @@ TOption = sp.TRecord(owner=sp.TAddress, base_asset=sp.TString, state=TOptionStat
 invalid_option_period_error = "Invalid option period"
 invalid_amount_error = "Invalid amount"
 
+default_min_amount = 1000000
+
 
 class OptionMarket(sp.Contract):
     _option_min_period = 1
     _option_max_period = 30
-    _min_amount = 1
 
-    def __init__(self, admin, base_asset, normalizer_address, option_fa2_address=sp.none, pool_address=sp.none):
+    def __init__(self, admin, base_asset, option_type, normalizer_address,
+                 min_amount=1000000, option_fa2_address=sp.none, pool_address=sp.none):
         self.base_asset = base_asset
+        self.option_type = option_type
+        self.min_amount = min_amount
         self.normalizer_address = normalizer_address
         self.init_type(sp.TRecord(admin=sp.TAddress, option_fa2_address=sp.TOption(sp.TAddress), pool_address=sp.TOption(
             sp.TAddress), options=sp.TBigMap(sp.TNat, TOption), next_token_id=sp.TNat))
@@ -41,7 +45,7 @@ class OptionMarket(sp.Contract):
 
         self.data.options[self.data.next_token_id] = option
 
-        option_metadata = self.get_option_metadata(option)
+        option_metadata = self.get_option_metadata()
         option_fa2_param = sp.TRecord(address=sp.TAddress, amount=sp.TNat,
                                       metadata=sp.TMap(sp.TString, sp.TBytes), token_id=sp.TNat)
         option_fa2_address = self.data.option_fa2_address.open_some(
@@ -72,16 +76,16 @@ class OptionMarket(sp.Contract):
                   invalid_option_period_error)
         sp.verify(period <= self._option_max_period,
                   invalid_option_period_error)
-        sp.verify(amount >= self._min_amount, invalid_amount_error)
+        sp.verify(amount >= self.min_amount, invalid_amount_error)
         expiration = sp.now
         expiration.add_days(period)
         return sp.record(owner=owner, base_asset=base_asset, state=sp.variant("Active", sp.unit),
                          amount=amount, strike=strike, expiration=expiration)
 
-    def get_option_metadata(self, option):
+    def get_option_metadata(self):
         return FA2.make_metadata(
             decimals=0,
-            name=self.base_asset + " Option",
+            name=self.base_asset + " " + self.option_type + " Option",
             symbol="POP"
         )
 
@@ -94,10 +98,21 @@ class OptionMarket(sp.Contract):
 
 
 sp.add_compilation_target(
-    "option_market",
+    "xtz_usd_call_option_market",
     OptionMarket(
         admin=sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"),
         base_asset="XTZ-USD",
+        option_type="Call",
+        normalizer_address=sp.address("KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"),
+    )
+)
+
+sp.add_compilation_target(
+    "xtz_usd_put_option_market",
+    OptionMarket(
+        admin=sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"),
+        base_asset="XTZ-USD",
+        option_type="Put",
         normalizer_address=sp.address("KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"),
     )
 )
@@ -111,11 +126,12 @@ def test():
     # init
     sp.test_account("banana")
     normalizer_contract = harbinger_mock.Normalizer()
-    pool_contract = pool.Pool(base_asset)
+    pool_contract = pool.Pool()
     option_fa2_contract = option_fa2.OptionFA2(admin=alice.address)
     option_market_contract = OptionMarket(
         admin=alice.address,
         base_asset=base_asset,
+        option_type="Call",
         normalizer_address=normalizer_contract.address
     )
 
@@ -144,7 +160,7 @@ def test():
         option_market_contract.data.pool_address.open_some() == pool_contract.address)
 
     scenario.h2("Sell option")
-    amount = 1
+    amount = 1000000
     strike = 360000
     period = 14
     too_short_period = 0

@@ -30,8 +30,10 @@ compile-option-fa2:
 
 compile-option-market:
 	$(SMART_PY_CLI) compile $(CONTRACTS_DIR)/option_market.py $(TEMP_DIR)
-	cp $(TEMP_DIR)/option_market/step_000_cont_2_contract.tz $(DIST_DIR)/option_market.tz
-	cp $(TEMP_DIR)/option_market/step_000_cont_2_storage.tz $(DIST_DIR)/option_market_storage.tz
+	cp $(TEMP_DIR)/xtz_usd_call_option_market/step_000_cont_2_contract.tz $(DIST_DIR)/xtz_usd_call_option_market.tz
+	cp $(TEMP_DIR)/xtz_usd_call_option_market/step_000_cont_2_storage.tz $(DIST_DIR)/xtz_usd_call_option_market_storage.tz
+		cp $(TEMP_DIR)/xtz_usd_put_option_market/step_000_cont_3_contract.tz $(DIST_DIR)/xtz_usd_put_option_market.tz
+	cp $(TEMP_DIR)/xtz_usd_put_option_market/step_000_cont_3_storage.tz $(DIST_DIR)/xtz_usd_put_option_market_storage.tz
 
 
 #Test Everything
