@@ -14,11 +14,13 @@ TOption = sp.TRecord(owner=sp.TAddress, base_asset=sp.TString, state=TOptionStat
                      strike=sp.TNat, expiration=sp.TTimestamp)
 
 invalid_option_period_error = "Invalid option period"
+invalid_amount_error = "Invalid amount"
 
 
 class OptionManager(sp.Contract):
     _option_min_period = 1
     _option_max_period = 30
+    _min_amount = 1
 
     def __init__(self, admin, base_asset, normalizer_address, option_fa2_address=sp.none, pool_address=sp.none):
         self.base_asset = base_asset
@@ -46,7 +48,7 @@ class OptionManager(sp.Contract):
             "Option FA2 address does not set")
         option_fa2_contract = sp.contract(
             option_fa2_param, option_fa2_address, "mint").open_some("Option FA2 interface mismatch")
-        sp.transfer(sp.record(address=option.owner, amount=option.amount, metadata=option_metadata,
+        sp.transfer(sp.record(address=option.owner, amount=1, metadata=option_metadata,
                     token_id=self.data.next_token_id), sp.mutez(0), option_fa2_contract)
 
         self.data.next_token_id += 1
@@ -70,6 +72,7 @@ class OptionManager(sp.Contract):
                   invalid_option_period_error)
         sp.verify(period <= self._option_max_period,
                   invalid_option_period_error)
+        sp.verify(amount >= self._min_amount, invalid_amount_error)
         expiration = sp.now
         expiration.add_days(period)
         return sp.record(owner=owner, base_asset=base_asset, state=sp.variant("Active", sp.unit),
@@ -78,7 +81,7 @@ class OptionManager(sp.Contract):
     def get_option_metadata(self, option):
         return FA2.make_metadata(
             decimals=0,
-            name=self.base_asset + "Option",
+            name=self.base_asset + " Option",
             symbol="POP"
         )
 
@@ -147,6 +150,7 @@ def test():
     too_short_period = 0
     too_long_period = 31
     base_asset_price = 350000
+    zero_amount = 0
 
     scenario.p("it should create an option correctly")
     scenario += option_manager_contract.sell_option(
@@ -170,7 +174,11 @@ def test():
     scenario += option_manager_contract.sell_option(amount=amount,
                                                     strike=strike, period=too_long_period).run(sender=alice.address, valid=False)
 
-    scenario.p("it should set the strike to the spot price if 0 is given")
+    scenario.p("it should revert if the amount is less than 1")
+    scenario += option_manager_contract.sell_option(amount=zero_amount,
+                                                    strike=strike, period=period).run(sender=alice.address, valid=False)
+
+    scenario.p("it should set option's strike to the spot price if 0 is given")
     scenario += option_manager_contract.sell_option(amount=amount,
                                                     strike=0, period=period).run(sender=alice.address)
     token_id = sp.as_nat(option_manager_contract.data.next_token_id - 1)
