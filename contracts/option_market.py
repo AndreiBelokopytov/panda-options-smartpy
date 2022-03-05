@@ -1,10 +1,14 @@
+from lib2to3.pgen2 import token
 import smartpy as sp
 
+price_calculator = sp.io.import_script_from_url(
+    "file:contracts/utils/price_calculator.py")
 FA2 = sp.io.import_script_from_url("https://smartpy.io/templates/FA2.py").FA2
 pool = sp.io.import_script_from_url("file:contracts/pool.py")
 option_fa2 = sp.io.import_script_from_url("file:contracts/option_fa2.py")
 harbinger_mock = sp.io.import_script_from_url(
     "file:contracts/mocks/harbinger_mock.py")
+token_mock = sp.io.import_script_from_url("file:contracts/mocks/token_mock.py")
 constants = sp.io.import_script_from_url("file:contracts/utils/constants.py")
 
 TOptionState = sp.TVariant(
@@ -23,12 +27,14 @@ class OptionMarket(sp.Contract):
     _option_min_period = 1
     _option_max_period = 30
 
-    def __init__(self, admin, base_asset, option_type, normalizer_address,
+    def __init__(self, admin, base_asset, option_type, normalizer_address, token_address,
                  min_amount=1000000, option_fa2_address=sp.none, pool_address=sp.none):
         self.base_asset = base_asset
         self.option_type = option_type
         self.min_amount = min_amount
         self.normalizer_address = normalizer_address
+        self.token_address = token_address
+        self.price_calcultator = price_calculator.PriceCalculator()
         self.init_type(sp.TRecord(admin=sp.TAddress, option_fa2_address=sp.TOption(sp.TAddress), pool_address=sp.TOption(
             sp.TAddress), options=sp.TBigMap(sp.TNat, TOption), next_token_id=sp.TNat))
         self.init(admin=admin, option_fa2_address=option_fa2_address, pool_address=pool_address, options=sp.big_map(tkey=sp.TNat,
@@ -54,6 +60,8 @@ class OptionMarket(sp.Contract):
             option_fa2_param, option_fa2_address, "mint").open_some("Option FA2 interface mismatch")
         sp.transfer(sp.record(address=option.owner, amount=1, metadata=option_metadata,
                     token_id=self.data.next_token_id), sp.mutez(0), option_fa2_contract)
+
+        self.lock_funds(option)
 
         self.data.next_token_id += 1
 
@@ -82,6 +90,15 @@ class OptionMarket(sp.Contract):
         return sp.record(owner=owner, base_asset=base_asset, state=sp.variant("Active", sp.unit),
                          amount=amount, strike=strike, expiration=expiration)
 
+    def lock_funds(self, option):
+        amount_to_lock = self.price_calcultator.get_option_price(option)
+        token_transfer_param = sp.TRecord(
+            from_=sp.TAddress, to_=sp.TAddress, value=sp.TNat).layout(("from_ as from", ("to_ as to", "value")))
+        token_transfer_method = sp.contract(
+            token_transfer_param, self.token_address, "transfer").open_some("Token interface mismatch")
+        sp.transfer(sp.record(from_=sp.sender, to_=self.data.pool_address.open_some(), value=amount_to_lock),
+                    sp.tez(0), token_transfer_method)
+
     def get_option_metadata(self):
         return FA2.make_metadata(
             decimals=0,
@@ -103,6 +120,7 @@ sp.add_compilation_target(
         admin=sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"),
         base_asset="XTZ-USD",
         option_type="Call",
+        token_address=sp.address("KT1HSirtQ6fiZFTvfHNHpGPsBeT2vH8HjPYa"),
         normalizer_address=sp.address("KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"),
     )
 )
@@ -113,31 +131,45 @@ sp.add_compilation_target(
         admin=sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"),
         base_asset="XTZ-USD",
         option_type="Put",
+        token_address=sp.address("KT1HSirtQ6fiZFTvfHNHpGPsBeT2vH8HjPYa"),
         normalizer_address=sp.address("KT1PMQZxQTrFPJn3pEaj9rvGfJA9Hvx7Z1CL"),
     )
 )
 
 
-@sp.add_test(name="option_market_test")
+@ sp.add_test(name="option_market_test")
 def test():
     base_asset = "XTZ-USD"
     alice = sp.test_account("alice")
 
+    amount = 1000000
+    strike = 360000
+    period = 14
+    too_short_period = 0
+    too_long_period = 31
+    base_asset_price = 350000
+    zero_amount = 0
+
     # init
     sp.test_account("banana")
     normalizer_contract = harbinger_mock.Normalizer()
+    token_contract = token_mock.Token(
+        sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"))
     pool_contract = pool.Pool()
     option_fa2_contract = option_fa2.OptionFA2(admin=alice.address)
+
     option_market_contract = OptionMarket(
         admin=alice.address,
         base_asset=base_asset,
         option_type="Call",
-        normalizer_address=normalizer_contract.address
+        normalizer_address=normalizer_contract.address,
+        token_address=token_contract.address
     )
 
     scenario = sp.test_scenario()
     scenario += normalizer_contract
     scenario += pool_contract
+    scenario += token_contract
     scenario += option_fa2_contract
     scenario += option_market_contract
 
@@ -159,14 +191,12 @@ def test():
     scenario.verify(
         option_market_contract.data.pool_address.open_some() == pool_contract.address)
 
+    scenario += token_contract.mint(sp.record(address=alice.address, value=strike)).run(
+        sender=sp.address("tz1Xf1CJtexgmpEprsxBS8cNMZYyusSSfEsw"))
+    scenario += token_contract.approve(sp.record(
+        spender=option_market_contract.address, value=strike)).run(sender=alice.address)
+
     scenario.h2("Sell option")
-    amount = 1000000
-    strike = 360000
-    period = 14
-    too_short_period = 0
-    too_long_period = 31
-    base_asset_price = 350000
-    zero_amount = 0
 
     scenario.p("it should create an option correctly")
     scenario += option_market_contract.sell_option(
@@ -181,6 +211,15 @@ def test():
     scenario.verify(option.amount == amount)
     scenario.verify(option.strike == strike)
     scenario.verify(option.state.is_variant("Active"))
+
+    scenario.p("it should mint an NFT token")
+
+    token_id = sp.as_nat(option_market_contract.data.next_token_id - 1)
+    scenario.verify(option_fa2_contract.does_token_exist(token_id))
+
+    scenario.p("it should lock funds in pool contract")
+    scenario.verify(
+        token_contract.data.balances[pool_contract.address].balance > 0)
 
     scenario.p("it should revert if the strike is less than 1 day")
     scenario += option_market_contract.sell_option(
@@ -201,9 +240,3 @@ def test():
     option = option_market_contract.data.options[token_id]
     quote = normalizer_contract.getPrice(base_asset)
     scenario.verify(option.strike == sp.snd(quote))
-
-    scenario.p("it should mint an NFT token")
-    scenario += option_market_contract.sell_option(amount=amount,
-                                                   strike=0, period=period).run(sender=alice.address)
-    token_id = sp.as_nat(option_market_contract.data.next_token_id - 1)
-    scenario.verify(option_fa2_contract.does_token_exist(token_id))
